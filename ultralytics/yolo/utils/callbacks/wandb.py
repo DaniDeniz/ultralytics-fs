@@ -21,6 +21,7 @@ def on_pretrain_routine_start(trainer):
 def on_train_epoch_end(trainer):
     if trainer.epoch == 1:
         log_dict['Mosaics'] = [wandb.Image(str(f)) for f in trainer.save_dir.glob('train_batch*.jpg')]
+        wandb.log(log_dict)
 
 
 def on_fit_epoch_end(trainer):
@@ -28,7 +29,7 @@ def on_fit_epoch_end(trainer):
         model_info = {
             "Parameters": get_num_params(trainer.model),
             "GFLOPs": round(get_flops(trainer.model), 3),
-            "Inference speed (ms/img)": round(trainer.validator.speed['inference'], 3)}
+            "Inference speed (ms)": round(trainer.validator.speed['inference'], 3)}
         wandb.run.summary.update(model_info)
     keys = [
         'train/box_loss',
@@ -79,6 +80,8 @@ def on_val_end(validator):
     if files and validator.training:
         log_dict.clear()
         log_dict['Validation'] = [wandb.Image(str(f), caption=f.name) for f in files]
+        wandb.log(log_dict)
+        log_dict.clear()
 
 
 callbacks = {
