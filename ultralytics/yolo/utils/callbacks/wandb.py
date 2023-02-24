@@ -28,7 +28,7 @@ def on_fit_epoch_end(trainer):
         model_info = {
             "Parameters": get_num_params(trainer.model),
             "GFLOPs": round(get_flops(trainer.model), 3),
-            "Inference speed (ms/img)": round(trainer.validator.speed[1], 3)}
+            "Inference speed (ms/img)": round(trainer.validator.speed['inference'], 3)}
         wandb.run.summary.update(model_info)
     keys = [
         'train/box_loss',
