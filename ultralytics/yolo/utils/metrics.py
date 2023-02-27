@@ -239,15 +239,19 @@ class ConfusionMatrix:
         sn.set(font_scale=1.0 if nc < 50 else 0.8)  # for label size
         labels = (0 < nn < 99) and (nn == nc)  # apply names to ticklabels
         ticklabels = (names + ['background']) if labels else 'auto'
+
+        formatted_text = (np.asarray(["{:.2f}\n({})".format(
+            normalized, int(raw_data)) for normalized, raw_data in zip(array.flatten(), self.matrix.flatten())])).reshape(array.shape)
+
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
             sn.heatmap(array,
                        ax=ax,
-                       annot=nc < 30,
+                       annot=formatted_text if nc < 30 else None,
                        annot_kws={
                            'size': 8},
                        cmap='Blues',
-                       fmt='.2f',
+                       fmt='',
                        square=True,
                        vmin=0.0,
                        xticklabels=ticklabels,
