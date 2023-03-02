@@ -169,7 +169,7 @@ class ConfusionMatrix:
     def __init__(self, nc, conf=0.25, iou_thres=0.45):
         self.matrix = np.zeros((nc + 1, nc + 1))
         self.nc = nc  # number of classes
-        self.conf = conf
+        self.conf = conf if conf > 0.02 else 0.25
         self.iou_thres = iou_thres
 
     def process_batch(self, detections, labels):
@@ -258,7 +258,7 @@ class ConfusionMatrix:
                        yticklabels=ticklabels).set_facecolor((1, 1, 1))
         ax.set_xlabel('True')
         ax.set_ylabel('Predicted')
-        ax.set_title('Confusion Matrix')
+        ax.set_title(f'Confusion Matrix (conf={self.conf:.2f}_iou={self.iou_thres:.2f})')
         fig.savefig(Path(save_dir) / f'confusion_matrix_(conf={self.conf:.2f}_iou={self.iou_thres:.2f}).png', dpi=250)
         plt.close(fig)
 
@@ -304,7 +304,7 @@ def plot_mc_curve(px, py, save_dir=Path('mc_curve.png'), names=(), xlabel='Confi
     if 0 < len(names) < 21:  # display per-class legend if < 21 classes
         for i, y in enumerate(py):
             ax.plot(px, y, linewidth=1,
-                    label=f'{names[i]} {y.max():.2f} at {px[y.argmax()]:.3f}')  # plot(confidence, metric)
+                    label=f'{names[i]}')  # plot(confidence, metric)
     else:
         ax.plot(px, py.T, linewidth=1, color='grey')  # plot(confidence, metric)
 
