@@ -33,6 +33,7 @@ from ultralytics.yolo.utils.dist import ddp_cleanup, generate_ddp_command
 from ultralytics.yolo.utils.files import get_latest_run, increment_path
 from ultralytics.yolo.utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, init_seeds, one_cycle,
                                                 select_device, strip_optimizer)
+from ultralytics.yolo.utils.train_callbacks import CallbacksManager, ReduceLROnPlateau, LambdaLRCallback
 
 
 class BaseTrainer:
@@ -201,6 +202,7 @@ class BaseTrainer:
         """
         # model
         self.run_callbacks('on_pretrain_routine_start')
+        list_of_train_callbacks = []
         ckpt = self.setup_model()
         self.model = self.model.to(self.device)
         self.set_model_attributes()
@@ -225,12 +227,19 @@ class BaseTrainer:
                                               lr=self.args.lr0,
                                               momentum=self.args.momentum,
                                               decay=weight_decay)
+
         # Scheduler
-        if self.args.cos_lr:
-            self.lf = one_cycle(1, self.args.lrf, self.epochs)  # cosine 1->hyp['lrf']
+        if self.args.reduce_plateau:
+            reduce_lr = ReduceLROnPlateau(self.optimizer, factor=0.2, patience=self.args.reduce_plateau)
+            list_of_train_callbacks.append(reduce_lr)
         else:
-            self.lf = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf  # linear
-        self.scheduler = lr_scheduler.LambdaLR(self.optimizer, lr_lambda=self.lf)
+            if self.args.cos_lr:
+                self.lf = one_cycle(1, self.args.lrf, self.epochs)  # cosine 1->hyp['lrf']
+            else:
+                self.lf = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf  # linear
+            scheduler_lambda = lr_scheduler.LambdaLR(self.optimizer, lr_lambda=self.lf)
+            scheduler_lambda.last_epoch = self.start_epoch - 1  # do not move
+            list_of_train_callbacks.append(LambdaLRCallback(scheduler_lambda))
         self.stopper, self.stop = EarlyStopping(patience=self.args.patience), False
 
         # dataloaders
@@ -245,7 +254,8 @@ class BaseTrainer:
             if self.args.plots:
                 self.plot_training_labels()
         self.resume_training(ckpt)
-        self.scheduler.last_epoch = self.start_epoch - 1  # do not move
+
+        self.c_manager = CallbacksManager(list_of_train_callbacks)
         self.run_callbacks('on_pretrain_routine_end')
 
     def _do_train(self, rank=-1, world_size=1):
@@ -259,6 +269,7 @@ class BaseTrainer:
         self.train_time_start = time.time()
         nb = len(self.train_loader)  # number of batches
         nw = max(round(self.args.warmup_epochs * nb), 100)  # number of warmup iterations
+        nw = 0
         last_opt_step = -1
         self.run_callbacks('on_train_start')
         LOGGER.info(f'Image sizes {self.args.imgsz} train, {self.args.imgsz} val\n'
@@ -292,15 +303,15 @@ class BaseTrainer:
                 self.run_callbacks('on_train_batch_start')
                 # Warmup
                 ni = i + nb * epoch
-                if ni <= nw:
-                    xi = [0, nw]  # x interp
-                    self.accumulate = max(1, np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round())
-                    for j, x in enumerate(self.optimizer.param_groups):
-                        # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x['lr'] = np.interp(
-                            ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr'] * self.lf(epoch)])
-                        if 'momentum' in x:
-                            x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
+                # if ni <= nw:
+                #     xi = [0, nw]  # x interp
+                #     self.accumulate = max(1, np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round())
+                #     for j, x in enumerate(self.optimizer.param_groups):
+                #         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
+                #         x['lr'] = np.interp(
+                #             ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr'] * self.lf(epoch)])
+                #         if 'momentum' in x:
+                #             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
 
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
@@ -336,7 +347,6 @@ class BaseTrainer:
 
             self.lr = {f'lr/pg{ir}': x['lr'] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
 
-            self.scheduler.step()
             self.run_callbacks('on_train_epoch_end')
 
             if rank in {-1, 0}:
@@ -359,6 +369,7 @@ class BaseTrainer:
             self.epoch_time = tnow - self.epoch_time_start
             self.epoch_time_start = tnow
             self.run_callbacks('on_fit_epoch_end')
+            self.c_manager.on_epoch_end(epoch=epoch, logs=self.metrics)
 
             # Early Stopping
             if RANK != -1:  # if DDP training
