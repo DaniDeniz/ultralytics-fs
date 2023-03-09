@@ -25,7 +25,6 @@ class ReduceLROnPlateau(Callback):
                                                         min_lr=min_lr)
 
     def on_epoch_end(self, epoch, logs=None):
-        print(logs)
         val_loss = logs.get("val/box_loss")
         self.scheduler.step(val_loss)
 
