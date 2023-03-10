@@ -230,7 +230,8 @@ class BaseTrainer:
 
         # Scheduler
         if self.args.reduce_plateau:
-            reduce_lr = ReduceLROnPlateau(self.optimizer, factor=0.2, patience=self.args.reduce_plateau)
+            reduce_lr = ReduceLROnPlateau(self.optimizer, factor=0.2, patience=self.args.reduce_plateau,
+                                          monitor=self.args.plateau_monitor)
             list_of_train_callbacks.append(reduce_lr)
         else:
             if self.args.cos_lr:

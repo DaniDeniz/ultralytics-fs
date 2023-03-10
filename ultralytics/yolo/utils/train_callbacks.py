@@ -17,15 +17,16 @@ class Callback:
 
 
 class ReduceLROnPlateau(Callback):
-    def __init__(self, optimizer, factor=0.1, patience=5, verbose=True, min_lr=1e-7):
+    def __init__(self, optimizer, factor=0.1, patience=5, verbose=True, min_lr=1e-7, monitor="val/dfl_loss"):
         self.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer,
                                                         factor=factor,
                                                         patience=patience,
                                                         verbose=verbose,
                                                         min_lr=min_lr)
+        self.monitor = monitor
 
     def on_epoch_end(self, epoch, logs=None):
-        val_loss = logs.get("val/box_loss")
+        val_loss = logs.get(self.monitor)
         self.scheduler.step(val_loss)
 
 
