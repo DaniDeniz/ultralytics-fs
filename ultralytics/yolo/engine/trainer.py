@@ -257,6 +257,17 @@ class BaseTrainer:
         self.resume_training(ckpt)
 
         self.c_manager = CallbacksManager(list_of_train_callbacks)
+
+        if self.args.freeze is not None:
+            # Freeze layers
+            freeze = [f'model.{x}.' for x in
+                      (self.args.freeze if type(self.args.freeze) is list else range(self.args.freeze))]  # layers to freeze
+
+            for k, v in self.model.named_parameters():
+                v.requires_grad = True  # train all layers
+                if any(x in k for x in freeze):
+                    LOGGER.info(f'freezing {k}')
+                    v.requires_grad = False
         self.run_callbacks('on_pretrain_routine_end')
 
     def _do_train(self, rank=-1, world_size=1):
