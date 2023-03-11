@@ -33,7 +33,7 @@ from ultralytics.yolo.utils.dist import ddp_cleanup, generate_ddp_command
 from ultralytics.yolo.utils.files import get_latest_run, increment_path
 from ultralytics.yolo.utils.torch_utils import (EarlyStopping, ModelEMA, de_parallel, init_seeds, one_cycle,
                                                 select_device, strip_optimizer)
-from ultralytics.yolo.utils.train_callbacks import CallbacksManager, ReduceLROnPlateau, LambdaLRCallback
+from ultralytics.yolo.utils.train_callbacks import CallbacksManager, ReduceLROnPlateau, LRCallback
 
 
 class BaseTrainer:
@@ -229,18 +229,21 @@ class BaseTrainer:
                                               decay=weight_decay)
 
         # Scheduler
+        if self.args.cos_lr:
+            scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.epochs,
+                                                       eta_min=self.args.lr0 * self.args.lrf)
+        else:
+            self.lf = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf  # linear
+            scheduler = lr_scheduler.LambdaLR(self.optimizer, lr_lambda=self.lf)
+            scheduler.last_epoch = self.start_epoch - 1  # do not move
+        list_of_train_callbacks.append(LRCallback(scheduler))
+
         if self.args.reduce_plateau:
+            assert self.args.cos_lr, "Reduce LR on Plateau is only compatible with cosine LR"
             reduce_lr = ReduceLROnPlateau(self.optimizer, factor=0.2, patience=self.args.reduce_plateau,
                                           monitor=self.args.plateau_monitor)
             list_of_train_callbacks.append(reduce_lr)
-        else:
-            if self.args.cos_lr:
-                self.lf = one_cycle(1, self.args.lrf, self.epochs)  # cosine 1->hyp['lrf']
-            else:
-                self.lf = lambda x: (1 - x / self.epochs) * (1.0 - self.args.lrf) + self.args.lrf  # linear
-            scheduler_lambda = lr_scheduler.LambdaLR(self.optimizer, lr_lambda=self.lf)
-            scheduler_lambda.last_epoch = self.start_epoch - 1  # do not move
-            list_of_train_callbacks.append(LambdaLRCallback(scheduler_lambda))
+
         self.stopper, self.stop = EarlyStopping(patience=self.args.patience), False
 
         # dataloaders

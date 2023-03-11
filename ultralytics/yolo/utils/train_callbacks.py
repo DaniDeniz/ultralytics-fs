@@ -22,7 +22,8 @@ class ReduceLROnPlateau(Callback):
                                                         factor=factor,
                                                         patience=patience,
                                                         verbose=verbose,
-                                                        min_lr=min_lr)
+                                                        min_lr=min_lr,
+                                                        threshold=0.002)
         self.monitor = monitor
 
     def on_epoch_end(self, epoch, logs=None):
@@ -30,7 +31,7 @@ class ReduceLROnPlateau(Callback):
         self.scheduler.step(val_loss)
 
 
-class LambdaLRCallback(Callback):
+class LRCallback(Callback):
     def __init__(self, scheduler):
         self.scheduler = scheduler
 
