@@ -107,7 +107,7 @@ fliplr: 0.5  # image flip left-right (probability)
 mosaic: 1.0  # image mosaic (probability)
 mixup: 0.0  # image mixup (probability)
 copy_paste: 0.0  # segment copy-paste (probability)
-albumentations: 0 # albumentation (probability), range 0-1
+albumentations: 0.0 # albumentation (probability), range 0-1
 
 # Custom config.yaml ---------------------------------------------------------------------------------------------------
 cfg:  # for overriding defaults.yaml
