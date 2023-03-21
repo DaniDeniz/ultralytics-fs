@@ -675,7 +675,7 @@ def v8_transforms(dataset, imgsz, hyp):
     return Compose([
         pre_transform,
         MixUp(dataset, pre_transform=pre_transform, p=hyp.mixup),
-        Albumentations(p=1.0),
+        Albumentations(p=0.0 if hyp.albumentations is None else hyp.albumentations),
         RandomHSV(hgain=hyp.hsv_h, sgain=hyp.hsv_s, vgain=hyp.hsv_v),
         RandomFlip(direction='vertical', p=hyp.flipud),
         RandomFlip(direction='horizontal', p=hyp.fliplr),])  # transforms
