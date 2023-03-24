@@ -413,6 +413,47 @@ class RandomHSV:
         return labels
 
 
+class RandomHSL:
+    def __init__(self, hgain=0.5, sgain=0.5, lgain=0.5) -> None:
+        self.hgain = hgain
+        self.sgain = sgain
+        self.lgain = lgain
+
+    def __call__(self, labels):
+        img = labels['img']
+        if self.hgain or self.sgain or self.lgain:
+            r = np.random.uniform(-1, 1, 3) * [self.hgain, self.sgain, self.lgain] + 1  # random gains
+            hue, light, sat = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HLS))
+            dtype = img.dtype  # uint8
+
+            x = np.arange(0, 256, dtype=r.dtype)
+            lut_hue = ((x * r[0]) % 180).astype(dtype)
+            lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
+            lut_light = np.clip(x * r[2], 0, 255).astype(dtype)
+
+            im_hls = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(light, lut_light), cv2.LUT(sat, lut_sat)))
+            cv2.cvtColor(im_hls, cv2.COLOR_HLS2BGR, dst=img)  # no return needed
+        return labels
+
+
+class ClipMaximumBrightness:
+    def __init__(self, clip=False) -> None:
+        self.clip = 0.8 if clip else False
+
+    def __call__(self, labels):
+        img = labels['img']
+        if self.clip and 0 < self.clip < 1:
+            r = np.random.uniform(self.clip, 1)  # random gains
+            hue, light, sat = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HLS))
+
+            max_value = int(255 * r[0])
+            light[light > max_value] = max_value
+
+            im_hls = cv2.merge((hue, light, sat))
+            cv2.cvtColor(im_hls, cv2.COLOR_HLS2BGR, dst=img)  # no return needed
+        return labels
+
+
 class RandomFlip:
 
     def __init__(self, p=0.5, direction='horizontal') -> None:
@@ -560,11 +601,11 @@ class Albumentations:
             T = [
                 A.Blur(p=0.01),
                 A.MedianBlur(p=0.01),
-                A.ToGray(p=0.01),
+                A.ToGray(p=0.0),
                 A.CLAHE(p=0.01),
-                A.RandomBrightnessContrast(p=0.0),
+                A.RandomBrightnessContrast(p=0.01),
                 A.RandomGamma(p=0.0),
-                A.ImageCompression(quality_lower=75, p=0.0),]  # transforms
+                A.ImageCompression(quality_lower=75, p=0.01),]  # transforms
             self.transform = A.Compose(T, bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             LOGGER.info(prefix + ', '.join(f'{x}'.replace('always_apply=False, ', '') for x in T if x.p))
@@ -677,6 +718,8 @@ def v8_transforms(dataset, imgsz, hyp):
         MixUp(dataset, pre_transform=pre_transform, p=hyp.mixup),
         Albumentations(p=0.0 if hyp.albumentations is None else hyp.albumentations),
         RandomHSV(hgain=hyp.hsv_h, sgain=hyp.hsv_s, vgain=hyp.hsv_v),
+        RandomHSL(hgain=hyp.hsl_h, sgain=hyp.hsl_s, lgain=hyp.hsl_l),
+        ClipMaximumBrightness(clip=hyp.clip_brightness),
         RandomFlip(direction='vertical', p=hyp.flipud),
         RandomFlip(direction='horizontal', p=hyp.fliplr),])  # transforms
 
