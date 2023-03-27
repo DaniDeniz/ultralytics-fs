@@ -169,7 +169,8 @@ class BaseTrainer:
     def train(self):
         # Allow device='', device=None on Multi-GPU systems to default to device=0
         if isinstance(self.args.device, int) or self.args.device:  # i.e. device=0 or device=[0,1,2,3]
-            world_size = torch.cuda.device_count()
+            num_selected_devices = 1 if isinstance(self.args.device, int) else len(self.args.device)
+            world_size = min(torch.cuda.device_count(), num_selected_devices)
         elif torch.cuda.is_available():  # i.e. device=None or device=''
             world_size = 1  # default to device 0
         else:  # i.e. device='cpu' or 'mps'
