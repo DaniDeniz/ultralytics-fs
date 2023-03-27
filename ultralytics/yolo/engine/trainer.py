@@ -284,7 +284,6 @@ class BaseTrainer:
         self.train_time_start = time.time()
         nb = len(self.train_loader)  # number of batches
         nw = max(round(self.args.warmup_epochs * nb), 100)  # number of warmup iterations
-        nw = 0
         last_opt_step = -1
         self.run_callbacks('on_train_start')
         LOGGER.info(f'Image sizes {self.args.imgsz} train, {self.args.imgsz} val\n'
@@ -318,15 +317,15 @@ class BaseTrainer:
                 self.run_callbacks('on_train_batch_start')
                 # Warmup
                 ni = i + nb * epoch
-                # if ni <= nw:
-                #     xi = [0, nw]  # x interp
-                #     self.accumulate = max(1, np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round())
-                #     for j, x in enumerate(self.optimizer.param_groups):
-                #         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                #         x['lr'] = np.interp(
-                #             ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr'] * self.lf(epoch)])
-                #         if 'momentum' in x:
-                #             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
+                if ni <= nw and self.args.warmup_epochs is not None and self.args.warmup_epochs > 0:
+                    xi = [0, nw]  # x interp
+                    self.accumulate = max(1, np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round())
+                    for j, x in enumerate(self.optimizer.param_groups):
+                        # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
+                        x['lr'] = np.interp(
+                            ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr']])
+                        if 'momentum' in x:
+                            x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
 
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
