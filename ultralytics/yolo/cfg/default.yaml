@@ -112,6 +112,7 @@ mosaic: 1.0  # image mosaic (probability)
 mixup: 0.0  # image mixup (probability)
 copy_paste: 0.0  # segment copy-paste (probability)
 albumentations: 0.0 # albumentation (probability), range 0-1
+ycbcr_mode:
 
 # Custom config.yaml ---------------------------------------------------------------------------------------------------
 cfg:  # for overriding defaults.yaml

@@ -16,6 +16,7 @@ from ultralytics.yolo.utils.ops import xywh2xyxy
 from ultralytics.yolo.utils.plotting import plot_images, plot_labels, plot_results
 from ultralytics.yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from ultralytics.yolo.utils.torch_utils import de_parallel
+from ultralytics.yolo.utils.ycbcr import convert_to_ycbcr
 
 
 # BaseTrainer python usage
@@ -44,6 +45,8 @@ class DetectionTrainer(BaseTrainer):
                              rect=mode == 'val', names=self.data['names'])[0]
 
     def preprocess_batch(self, batch):
+        if self.args.ycbcr_mode:
+            batch['img'] = convert_to_ycbcr(batch['img'])
         batch['img'] = batch['img'].to(self.device, non_blocking=True).float() / 255
         return batch
 

@@ -14,6 +14,7 @@ from ultralytics.yolo.utils.checks import check_requirements
 from ultralytics.yolo.utils.metrics import ConfusionMatrix, DetMetrics, box_iou
 from ultralytics.yolo.utils.plotting import output_to_target, plot_images
 from ultralytics.yolo.utils.torch_utils import de_parallel
+from ultralytics.yolo.utils.ycbcr import convert_to_ycbcr
 
 
 class DetectionValidator(BaseValidator):
@@ -28,6 +29,8 @@ class DetectionValidator(BaseValidator):
         self.niou = self.iouv.numel()
 
     def preprocess(self, batch):
+        if self.args.ycbcr_mode:
+            batch['img'] = convert_to_ycbcr(batch['img'])
         batch['img'] = batch['img'].to(self.device, non_blocking=True)
         batch['img'] = (batch['img'].half() if self.args.half else batch['img'].float()) / 255
         for k in ['batch_idx', 'cls', 'bboxes']:

@@ -6,6 +6,7 @@ from ultralytics.yolo.engine.predictor import BasePredictor
 from ultralytics.yolo.engine.results import Results
 from ultralytics.yolo.utils import DEFAULT_CFG, ROOT, ops
 from ultralytics.yolo.utils.plotting import Annotator, colors, save_one_box
+from ultralytics.yolo.utils.ycbcr import convert_to_ycbcr
 
 
 class DetectionPredictor(BasePredictor):
@@ -14,6 +15,8 @@ class DetectionPredictor(BasePredictor):
         return Annotator(img, line_width=self.args.line_thickness, example=str(self.model.names))
 
     def preprocess(self, img):
+        if self.args.ycbcr_mode:
+            img = convert_to_ycbcr(img)
         img = torch.from_numpy(img).to(self.model.device)
         img = img.half() if self.model.fp16 else img.float()  # uint8 to fp16/32
         img /= 255  # 0 - 255 to 0.0 - 1.0
