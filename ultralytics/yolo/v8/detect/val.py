@@ -66,7 +66,8 @@ class DetectionValidator(BaseValidator):
                                         labels=self.lb,
                                         multi_label=True,
                                         agnostic=self.args.single_cls,
-                                        max_det=self.args.max_det)
+                                        max_det=self.args.max_det,
+                                        nms_ios=self.args.nms_ios)
         return preds
 
     def update_metrics(self, preds, batch):

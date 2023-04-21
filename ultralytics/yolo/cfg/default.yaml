@@ -113,6 +113,7 @@ mixup: 0.0  # image mixup (probability)
 copy_paste: 0.0  # segment copy-paste (probability)
 albumentations: 0.0 # albumentation (probability), range 0-1
 ycbcr_mode:
+nms_ios:
 
 # Custom config.yaml ---------------------------------------------------------------------------------------------------
 cfg:  # for overriding defaults.yaml

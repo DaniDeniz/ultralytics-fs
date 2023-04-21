@@ -28,7 +28,8 @@ class DetectionPredictor(BasePredictor):
                                         self.args.iou,
                                         agnostic=self.args.agnostic_nms,
                                         max_det=self.args.max_det,
-                                        classes=self.args.classes)
+                                        classes=self.args.classes,
+                                        nms_ios=self.args.nms_ios)
 
         results = []
         for i, pred in enumerate(preds):

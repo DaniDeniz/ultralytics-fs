@@ -129,41 +129,46 @@ def make_divisible(x, divisor):
     return math.ceil(x / divisor) * divisor
 
 
-# def non_max_suppression(boxes: np.ndarray, scores: np.ndarray, threshold: float):
-#     assert boxes.shape[0] == scores.shape[0]
-#     ys1 = boxes[:, 0]
-#     xs1 = boxes[:, 1]
-#     ys2 = boxes[:, 2]
-#     xs2 = boxes[:, 3]
-#
-#     areas = (ys2 - ys1) * (xs2 - xs1)
-#     scores_indexes = scores.argsort().tolist()
-#     boxes_keep_index = []
-#     while len(scores_indexes):
-#         index = scores_indexes.pop()
-#         boxes_keep_index.append(index)
-#         if not len(scores_indexes):
-#             break
-#         iou = compute_iou(
-#             boxes[index], boxes[scores_indexes], areas[index], areas[scores_indexes]
-#         )
-#         filtered_indexes = set((iou > threshold).nonzero()[0])
-#         scores_indexes = [
-#             v for (i, v) in enumerate(scores_indexes) if i not in filtered_indexes
-#         ]
-#     return np.array(boxes_keep_index)
-#
-#
-# def compute_iou(box, boxes, box_area, boxes_area):
-#     assert boxes.shape[0] == boxes_area.shape[0]
-#     ys1 = np.maximum(box[0], boxes[:, 0])
-#     xs1 = np.maximum(box[1], boxes[:, 1])
-#     ys2 = np.minimum(box[2], boxes[:, 2])
-#     xs2 = np.minimum(box[3], boxes[:, 3])
-#     intersections = np.maximum(ys2 - ys1, 0) * np.maximum(xs2 - xs1, 0)
-#     unions = box_area + boxes_area - intersections
-#     iou = intersections / unions
-#     return iou
+def non_max_suppression_ios(boxes: np.ndarray, scores: np.ndarray, threshold: float):
+    """
+    Non Maximum Suppression with area of intersection over the area of the smaller box.
+    https://www.sciencedirect.com/science/article/pii/S0952197622000434
+    """
+    assert boxes.shape[0] == scores.shape[0]
+
+    ys1 = boxes[:, 0]
+    xs1 = boxes[:, 1]
+    ys2 = boxes[:, 2]
+    xs2 = boxes[:, 3]
+
+    areas = (ys2 - ys1) * (xs2 - xs1)
+    scores_indexes = scores.argsort().tolist()
+    boxes_keep_index = []
+    while len(scores_indexes):
+        index = scores_indexes.pop()
+        boxes_keep_index.append(index)
+        if not len(scores_indexes):
+            break
+        iou = compute_ios(
+            boxes[index], boxes[scores_indexes], areas[index], areas[scores_indexes]
+        )
+        filtered_indexes = set((iou > threshold).nonzero()[0])
+        scores_indexes = [
+            v for (i, v) in enumerate(scores_indexes) if i not in filtered_indexes
+        ]
+    return np.array(boxes_keep_index)
+
+
+def compute_ios(box, boxes, box_area, boxes_area):
+    assert boxes.shape[0] == boxes_area.shape[0]
+    ys1 = np.maximum(box[0], boxes[:, 0])
+    xs1 = np.maximum(box[1], boxes[:, 1])
+    ys2 = np.minimum(box[2], boxes[:, 2])
+    xs2 = np.minimum(box[3], boxes[:, 3])
+    intersections = np.maximum(ys2 - ys1, 0) * np.maximum(xs2 - xs1, 0)
+    smaller = np.minimum(box_area, boxes_area)
+    iou = intersections / smaller
+    return iou
 
 
 def non_max_suppression(
@@ -179,6 +184,7 @@ def non_max_suppression(
         max_time_img=0.05,
         max_nms=30000,
         max_wh=7680,
+        nms_ios=False
 ):
     """
     Perform non-maximum suppression (NMS) on a set of boxes, with support for masks and multiple labels per box.
@@ -203,6 +209,7 @@ def non_max_suppression(
         max_time_img (float): The maximum time (seconds) for processing one image.
         max_nms (int): The maximum number of boxes into torchvision.ops.nms().
         max_wh (int): The maximum box width and height in pixels
+        nms_ios (bool): Use area of intersection over the area of the smaller box
 
     Returns:
         (List[torch.Tensor]): A list of length batch_size, where each element is a tensor of
@@ -279,7 +286,12 @@ def non_max_suppression(
         # Batched NMS
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+        if nms_ios:
+            i = torch.tensor(non_max_suppression_ios(boxes.cpu().numpy(), scores.cpu().numpy(), iou_thres),
+                             dtype=torch.int64)
+        else:
+            i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+
         i = i[:max_det]  # limit detections
         if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
             # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
